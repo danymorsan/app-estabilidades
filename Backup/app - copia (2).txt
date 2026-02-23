@@ -1,0 +1,140 @@
+# En tu app.py
+import streamlit as st
+import pandas as pd
+from catalogs import init_catalogs, list_catalog, add_item, update_item, delete_item, CATALOGS
+from db import insertar_estudio, obtener_estudios, obtener_puntos
+
+st.set_page_config(
+    page_title="Sistema de Estabilidades",
+    page_icon="logo_altea.png",  # 👈 aquí va tu logo
+    layout="wide"
+)
+
+# Inicializa BD de catálogos
+init_catalogs()
+
+# Cachea lecturas para que la UI sea fluida
+@st.cache_data(ttl=30)
+def get_catalog_cached(table):
+    return list_catalog(table)
+
+def refresh_catalog(table):
+    st.cache_data.clear()  # invalidar cache simple
+
+tab_form, tab_estudios, tab_puntos, tab_admin = st.tabs(["📄 Formulario", "📋 Estudios", "📅 Puntos", "🛠️ Listas base (Admin)"])
+
+# ================== FORMULARIO ==================
+with tab_form:
+    # Lee opciones desde catálogos
+    df_tipo_analisis = get_catalog_cached("TbTipoAnalisis")
+    df_clientes      = get_catalog_cached("TbClientes")
+    df_tipo_estudio  = get_catalog_cached("TbTipoEstudio")
+    df_producto      = get_catalog_cached("TbProducto")
+    df_cond_alm      = get_catalog_cached("TbCondAlm")
+    df_material      = get_catalog_cached("TbMaterialEnvase")
+
+    # Convierte a listas de string
+    tipos_analisis = df_tipo_analisis["nombre"].tolist()
+    clientes       = df_clientes["nombre"].tolist()
+    tipos_estudio  = df_tipo_estudio["nombre"].tolist()
+    productos      = df_producto["nombre"].tolist()
+    condiciones    = df_cond_alm["nombre"].tolist()
+    materiales     = df_material["nombre"].tolist()
+
+    st.subheader("Registrar nuevo estudio")
+    tipo_analisis = st.selectbox("Tipo de Análisis", tipos_analisis or ["(vacío)"])
+    cliente       = st.selectbox("Cliente", clientes or ["(vacío)"])
+    tipo_estudio  = st.selectbox("Tipo de Estudio", tipos_estudio or ["(vacío)"])
+    producto      = st.selectbox("Producto", productos or ["(vacío)"])
+    condicion     = st.selectbox("Condición de almacenamiento", condiciones or ["(vacío)"])
+    material      = st.selectbox("Material de envase", materiales or ["(vacío)"])
+
+    lote          = st.text_input("Lote")
+    cabina        = st.text_input("Cabina")
+    protocolo     = st.text_input("Protocolo")
+    fecha_ingreso = st.date_input("Fecha de Ingreso")
+    tiempo_max    = st.selectbox("Tiempo Máximo (meses)", [3,6,9,12,18,24,36,48])
+
+    # ⬇️ Mantener tu multiselect tal como querías
+    meses = st.multiselect("Puntos de Muestreo", list(range(0, tiempo_max+1)))
+
+    if st.button("Guardar"):
+        datos = (
+            tipo_analisis,
+            cliente,
+            protocolo,
+            tipo_estudio,
+            producto,
+            lote,
+            condicion,
+            cabina,
+            material,
+            fecha_ingreso.strftime("%Y-%m-%d"),
+            tiempo_max
+        )
+        try:
+            insertar_estudio(datos, meses)
+            st.success("Estudio guardado correctamente")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error al guardar: {e}")
+
+# ================== TABLAS ==================
+with tab_estudios:
+    st.subheader("📋 Estudios Registrados")
+    df_estudios = obtener_estudios()
+    st.dataframe(df_estudios, use_container_width=True)
+
+with tab_puntos:
+    st.subheader("📅 Puntos de Muestreo")
+    df_puntos = obtener_puntos()
+    st.dataframe(df_puntos, use_container_width=True)
+
+# ================== ADMIN LISTAS ==================
+with tab_admin:
+    st.subheader("🛠️ Listas base (Admin)")
+    st.caption("Edita las listas que alimentan los selectores del formulario. (Se guardan en data/base.db)")
+
+    cat = st.selectbox("Selecciona la lista a editar", CATALOGS, format_func=lambda x: x)
+    df = get_catalog_cached(cat)
+
+    col_add1, col_add2 = st.columns([3,1])
+    with col_add1:
+        nuevo = st.text_input("Agregar nuevo valor", key=f"add_{cat}")
+    with col_add2:
+        if st.button("➕ Agregar", key=f"btn_add_{cat}"):
+            add_item(cat, nuevo)
+            refresh_catalog(cat)
+            st.success("Valor agregado")
+
+    st.markdown("### Datos")
+    # Editor interactivo: permite editar la columna 'nombre'
+    if not df.empty:
+        edit_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            column_config={"id": st.column_config.NumberColumn("id", disabled=True)},
+            key=f"editor_{cat}"
+        )
+
+        # Detectar cambios y aplicar
+        if st.button("💾 Guardar cambios", key=f"save_{cat}"):
+            try:
+                # Comparar df original vs editado y aplicar cambios
+                orig = df.set_index("id")["nombre"].to_dict()
+                new  = edit_df.set_index("id")["nombre"].to_dict()
+                for _id, new_name in new.items():
+                    if _id in orig and orig[_id] != new_name:
+                        update_item(cat, int(_id), new_name)
+                # Detectar eliminaciones
+                deleted_ids = set(orig.keys()) - set(new.keys())
+                for _id in deleted_ids:
+                    delete_item(cat, int(_id))
+                refresh_catalog(cat)
+                st.success("Cambios guardados.")
+            except Exception as e:
+                st.error(f"Error guardando cambios: {e}")
+    else:
+        st.info("Esta lista está vacía. Agrega valores arriba.")

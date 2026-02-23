@@ -1,0 +1,3 @@
+cd "C:\Users\dmoreno\OneDrive - ALTEA FARMACEUTICA SA\Documentos\Datos solicitados\Dirección de operaciones\Desarrollo Galenico\AppEstabilidades"
+
+python -m streamlit run app.py

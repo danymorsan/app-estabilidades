@@ -1,0 +1,111 @@
+import streamlit as st
+import pandas as pd
+from db import insertar_estudio, obtener_estudios, obtener_puntos
+
+# Configuración de página
+st.set_page_config(page_title="Sistema de Estabilidades", layout="wide")
+st.title("🧪 Sistema de Estabilidades")
+
+# --- Sidebar (opcional) ---
+with st.sidebar:
+    st.header("⚙️ Opciones")
+    st.caption("Filtros y utilidades")
+    # Filtros rápidos para tablas (opcional)
+    filtro_cliente = st.text_input("Filtrar por cliente")
+    filtro_producto = st.text_input("Filtrar por producto")
+    st.markdown("---")
+    st.caption("Tip: usa Ctrl+K para buscar en la app")
+
+# --- Tabs principales ---
+tab_form, tab_estudios, tab_puntos = st.tabs(["📄 Formulario", "📋 Estudios", "📅 Puntos de Muestreo"])
+
+with tab_form:
+    st.subheader("Registrar nuevo estudio")
+    with st.form("form_estabilidad", clear_on_submit=True):
+        cols1 = st.columns(3)
+        with cols1[0]:
+            tipo_analisis = st.selectbox("Tipo de Análisis", ["Estabilidad", "Otro"])
+        with cols1[1]:
+            cliente = st.text_input("Cliente")
+        with cols1[2]:
+            producto = st.text_input("Producto")
+
+        cols2 = st.columns(3)
+        with cols2[0]:
+            lote = st.text_input("Lote")
+        with cols2[1]:
+            fecha_ingreso = st.date_input("Fecha de Ingreso")
+        with cols2[2]:
+            tiempo_max = st.selectbox("Tiempo Máximo (meses)", [3, 6, 9, 12, 18, 24, 36, 48], index=3)
+
+        # Puntos de muestreo dependientes de tiempo_max
+        meses = st.multiselect(
+            "Puntos de Muestreo (meses)",
+            options=list(range(0, tiempo_max + 1)),
+            default=[0, 1, 3, 6] if tiempo_max >= 6 else [0]
+        )
+
+        submitted = st.form_submit_button("💾 Guardar")
+
+    if submitted:
+        # Validaciones simples
+        if not cliente or not producto or not lote:
+            st.error("Por favor completa Cliente, Producto y Lote.")
+        else:
+            datos = (
+                tipo_analisis,
+                cliente,
+                "",   # campos reservados
+                "",
+                producto,
+                lote,
+                "",
+                "",
+                "",
+                fecha_ingreso.strftime("%Y-%m-%d"),
+                tiempo_max
+            )
+            try:
+                insertar_estudio(datos, meses)
+                st.success("✅ Estudio guardado correctamente")
+                # Forzar recarga para ver el nuevo registro en las tablas
+                st.toast("Actualizando tablas…", icon="🔄")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Ocurrió un error al guardar: {e}")
+
+with tab_estudios:
+    st.subheader("Estudios Registrados")
+
+    # Cargar datos
+    df_estudios = obtener_estudios()
+    # Aplicar filtros de sidebar (si se usan)
+    if 'filtro_cliente' in locals() and filtro_cliente:
+        df_estudios = df_estudios[df_estudios['cliente'].str.contains(filtro_cliente, case=False, na=False)]
+    if 'filtro_producto' in locals() and filtro_producto:
+        df_estudios = df_estudios[df_estudios['producto'].str.contains(filtro_producto, case=False, na=False)]
+
+    # Orden por fecha si existe la columna
+    if 'fecha_ingreso' in df_estudios.columns:
+        try:
+            df_estudios['fecha_ingreso'] = pd.to_datetime(df_estudios['fecha_ingreso'])
+            df_estudios = df_estudios.sort_values('fecha_ingreso', ascending=False)
+        except Exception:
+            pass
+
+    st.dataframe(df_estudios, use_container_width=True, hide_index=True)
+
+    # Descarga a Excel
+    if not df_estudios.empty:
+        excel = df_estudios.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("⬇️ Descargar (CSV)", data=excel, file_name="estudios.csv", mime="text/csv")
+
+with tab_puntos:
+    st.subheader("Puntos de Muestreo")
+    df_puntos = obtener_puntos()
+    st.dataframe(df_puntos, use_container_width=True, hide_index=True)
+
+    # Resumen rápido
+    if not df_puntos.empty and {'estudio_id','mes'}.issubset(df_puntos.columns):
+        resumen = df_puntos.groupby('mes', as_index=False).size().rename(columns={'size':'conteo'})
+        st.bar_chart(resumen.set_index('mes'))
