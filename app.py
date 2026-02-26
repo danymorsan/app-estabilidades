@@ -74,8 +74,9 @@ def password_policy_msg(p: str) -> str | None:
     return None
 
 # ---------------- Login ----------------
+
 if "user" not in st.session_state:
-    st.title("🔐 Iniciar sesión")
+    st.title("Iniciar sesión")
     with st.form("login"):
         u = st.text_input("Usuario")
         p = st.text_input("Contraseña", type="password")
@@ -117,10 +118,10 @@ if "form_reset" not in st.session_state:
 
 # ---------------- Tabs según rol ----------------
 if has_role("Supervisor"):
-    tabs = st.tabs(["📄 Formulario", "📋 Estudios", "📅 Puntos", "🛠️ Listas base (Admin)", "👥 Usuarios (Admin)", "📜 Logs"])
+    tabs = st.tabs(["Formulario", "Estudios", "Puntos", "Listas base (Admin)", "Usuarios (Admin)", "Logs"])
     tab_form, tab_estudios, tab_puntos, tab_admin, tab_users, tab_logs = tabs
 else:
-    tabs = st.tabs(["📄 Formulario", "📋 Estudios", "📅 Puntos", "📜 Logs"])
+    tabs = st.tabs(["Formulario", "Estudios", "Puntos", "Logs"])
     tab_form, tab_estudios, tab_puntos, tab_logs = tabs
     tab_admin = None
     tab_users = None
@@ -217,7 +218,7 @@ with tab_form:
 
 # ================== ESTUDIOS ==================
 with tab_estudios:
-    st.subheader("📋 Estudios Registrados")
+    st.subheader("Estudios Registrados")
     ver_borrados = st.toggle("Ver eliminados", value=False)
     df_estudios = obtener_estudios(include_deleted=ver_borrados)
 
@@ -294,7 +295,7 @@ with tab_estudios:
 # ================== PUNTOS ==================
 
 with tab_puntos:
-    st.subheader("📅 Puntos de Muestreo (detalle)")
+    st.subheader("Puntos de Muestreo (detalle)")
 
     import pandas as pd
     from db import get_conn
@@ -338,7 +339,7 @@ with tab_puntos:
 
     # Botón de descarga
     st.download_button(
-        "⬇️ Descargar CSV",
+        "Descargar CSV",
         df_puntos.to_csv(index=False).encode("utf-8-sig"),
         file_name="puntos_detalle.csv",
         mime="text/csv"
@@ -347,7 +348,7 @@ with tab_puntos:
 # ================== LISTAS BASE (ADMIN) ==================
 if tab_admin:
     with tab_admin:
-        st.subheader("🛠️ Listas base (Admin)")
+        st.subheader("Listas base (Admin)")
         st.caption(f"Edita las listas base (guardadas en {os.environ.get('APP_DB_PATH')}).")
 
         cat = st.selectbox("Selecciona la lista a editar", CATALOGS, format_func=lambda x: x)
@@ -357,7 +358,7 @@ if tab_admin:
         with col_add1:
             nuevo = st.text_input("Agregar nuevo valor", key=f"add_{cat}")
         with col_add2:
-            if st.button("➕ Agregar", key=f"btn_add_{cat}"):
+            if st.button("Agregar", key=f"btn_add_{cat}"):
                 add_item(cat, nuevo)
                 log_event(st.session_state.user, "INSERT", "catalogo", None, details={"tabla": cat, "valor": nuevo})
                 refresh_catalog(cat)
@@ -396,9 +397,9 @@ if tab_admin:
 # ================== USUARIOS (ADMIN) ==================
 if tab_users:
     with tab_users:
-        st.subheader("👥 Administración de usuarios")
+        st.subheader("Administración de usuarios")
 
-        with st.expander("➕ Crear usuario", expanded=True):
+        with st.expander("Crear usuario", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
                 new_username = st.text_input("Usuario")
@@ -486,7 +487,7 @@ if tab_users:
 
 # ================== LOGS ==================
 with tab_logs:
-    st.subheader("📜 Audit Log")
+    st.subheader("Audit Log")
     colf1, colf2, colf3 = st.columns([2,1,1])
     f_user = colf1.text_input("Filtrar por usuario")
     f_action = colf2.selectbox("Acción", ["", "LOGIN", "LOGOUT", "INSERT", "UPDATE", "DELETE", "RESTORE",
@@ -499,7 +500,7 @@ with tab_logs:
         dfl = pd.DataFrame(logs)
         st.dataframe(dfl, use_container_width=True, hide_index=True)
         st.download_button(
-            "⬇️ Descargar CSV",
+            "Descargar CSV",
             dfl.to_csv(index=False).encode("utf-8-sig"),
             file_name="audit_log.csv",
             mime="text/csv"
